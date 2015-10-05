@@ -1,0 +1,67 @@
+
+--- /cosmomc-March-13/batch1/params_CMB_defaults.ini
++++ /MGcosmomc-Mar13/batch1/params_CMB_defaults.ini
+@@ -33,6 +33,60 @@
+ param[Alens] = 1 1 1 0 0
+ param[fdm] = 0 0 0 0 0
+ 
++#MG variables
++#model= 0 : default GR
++#model= 1 : B-Z(mu,gamma) ( introduced in arXiv:0809.3791 )
++#model= 2 : (Q,R) ( introduced in arXiv:1002.4197 )
++#model= 3 : (Q0,R0,s)( introduced in arXiv:1002.4197 )
++#model= 4 : f(R), only lambda1_2 is used and the value is considered for B0 ( introduced in arXiv:0909.2045 )
++#model= 5 : Chameleon ( Yukawa-type dark matter interaction ), only B1, lambda1_2, SS are used. Agian, lambda1_2 is considered as B0 ( introduced in arXiv:0909.2045 )
++#model= 6 : Linder's gamma (introduced in arXiv:0507263 )
++
++model = 2
++
++
++GRtrans= 0.0
++
++param[B1] = 0 0 0 0 0 
++#1.125 1.1 1.14 0.1 0.1
++
++#For BZ models :
++param[lambda1_2] = 0 0 0 0 0 
++#0.67e4 0.6e4 0.7e4 10 10
++
++# For f(R) and chameleon models :
++#param[lambda1_2] = 0.001 0 1. 0.05 0.05
++
++param[B2] = 0 0 0 0 0 
++#0.78 0.6 0.9 0.1 0.1
++
++param[lambda2_2] = 0 0 0 0 0 
++#1.0e4 0.1e4 10.0e4 1 1
++
++param[ss] = 0 0 0 0 0 
++#2 1 4 0.1 0.1
++
++param[MGQfix]= 1 0.5 1.5 0.03 0.03
++
++param[MGRfix] = 1 0.5 1.5 0.03 0.03
++
++param[Qnot] = 0 0 0 0 0 
++#1 0.5 1.5 0.03 0.03
++
++
++param[Rnot]= 0 0 0 0 0 
++#1 0.5 1.5 0.03 0.03
++
++#0 0 0 0 0
++
++param[sss] = 0 0 0 0 0 
++#1 0.5 1.5 0.03 0.03
++
++
++param[Linder_gamma] =0.545 0.545 0.545 0 0
++
++
++
+ param[ns] = 0.96 0.9 1.1 0.004 0.004
+ #log[10^10 A_s]
+ param[logA] = 3.1 2.7 4 0.001 0.001
+
+*****************************************************************************
+
