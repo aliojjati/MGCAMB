@@ -1,0 +1,324 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html>
+<head>
+ <title>MGCAMB in CosmoMC</title>
+<link rel="icon" href="images/icon.png" type="image/png">
+ <meta name="description" content="MGCAMB in CosmoMC">
+ <meta name="keywords" content="MGCAMB, cosmomc, cosmology, modified gravity ">
+ <meta name="author" content="Alireza Hojjati">
+</head>
+
+<h1>
+<center>
+<span >  Steps to implement MGCAMB into CosmoMC </span>
+</center>
+</h1>
+<br>
+<br>
+ <div class="tinyText" style="height: 33px; left: 75px; position: top: 77px; width: 96px; z-index: 1; ">
+            <img usemap="#map4" id="shapeimage_6" src="images/backbutton.png" style="border: none; height: 40px; left: -3px; position: top: -4px; width: 102px; z-index: 1; " alt="&lt;&lt; back" title="" /><map name="map4" id="map4"><area href="MGcosmomc-instructions.html" title="Home.html" alt="www.sfu.ca/~aha25/MGcosmomc-instructions.html" coords="3, 4, 99, 37" /></map>
+          </div>
+<body style="background: rgb(255, 255, 255); margin: 30pt; " onload="onPageLoad();">
+<br>
+<br>
+<span > <strong> Follow the following steps to modify your existing cosmomc code: </strong> </span>
+
+<ul>
+ <li>
+<b>settings.f90 :</b>  Change <code>num_hard =7</code> to <code>num_hard =18</code> for including 11 MG variables.
+ </li>
+</ul>
+
+<ul>
+ <li>
+<b>CMB_Cls_simple.f90 : </b> Add <code> use mgvariables </code>to the beginning of the module. 
+ </li>
+</ul>
+<ul>
+ <li>
+<b>CMB_Cls_simple.f90 : </b> Add <code> model, B1, lambda1_2, B2, lambda2_2, ss,  GRtrans, MGQfix, MGRfix, Qnot, Rnot, sss,Linder_gamma </code> to the end of <code> use CAMB, only </code> at the top of the module. 
+ </li>
+</ul>
+<ul>
+ <li>
+<b>CMB_Cls_simple.f90 : </b> Replace <br>
+<br>
+ <code> 
+    if (w_is_w) then<br>
+     w_lam = CMB%w<br>
+    else<br>
+     P%InitialConditionVector(initial_iso_baryon) = CMB%w<br>
+     w_lam = -1<br>
+    end if  <br>
+</code>
+<br>
+with  <br>
+<br>
+<code>
+    if (w_is_w) then <br>
+     w_lam = CMB%w <br>
+    else <br>
+     P%InitialConditionVector(initial_iso_baryon) = CMB%w <br>
+     w_lam = -1 <br>
+    end if <br>
+    <br>
+   B1 = CMB%B1 <br>
+   lambda1_2 = CMB%lambda1_2 <br>
+   B2 = CMB%B2 <br>
+   lambda2_2 = CMB%lambda2_2   <br>
+   ss = CMB%ss <br>
+   MGQfix = CMB%MGQfix <br>
+   MGRfix = CMB%MGRfix <br>
+   Qnot = CMB%Qnot <br>
+   Rnot = CMB%Rnot <br>
+   sss = CMB%sss <br>
+   Linder_gamma = CMB%Linder_gamma    <br>
+ <br>
+</code>
+<br>
+ </li>
+</ul>
+
+
+
+<ul>
+ <li>
+<b>CMB_Cls_simple.f90 : </b> In function <code> RecomputeTransfers </code>, replace 
+<br>
+<br>
+<code>
+   RecomputeTransfers =  .not. (A%omb == B%omb .and. A%omc == B%omc .and. A%omv == B%omv .and. &<br>
+             A%omnu == B%omnu .and. A%zre == B%zre .and. A%omk == B%omk .and. A%w == B%w .and. &<br>
+               A%nnu == B%nnu .and. A%YHe == B%YHe)
+ <br>
+<br>
+</code>
+with
+<br>
+<br>
+<code>
+   RecomputeTransfers =  .not. (A%omb == B%omb .and. A%omc == B%omc .and. A%omv == B%omv .and. &<br>
+             A%omnu == B%omnu .and. A%zre == B%zre .and. A%omk == B%omk .and. A%w == B%w .and. &<br>
+               A%nnu == B%nnu .and. A%YHe == B%YHe .and. A%B1 == B%B1 .and. A%lambda1_2==B%lambda1_2 &<br>
+               .and. A%B2 == B%B2 .and. A%lambda2_2==B%lambda2_2 .and. A%ss == B%ss .and. &<br>
+               A%MGQfix == B%MGQfix .and. A%MGRfix == B%MGRfix .and. A%Qnot == B%Qnot .and. & <br>
+               A%Rnot == B%Rnot .and. A%sss == B%sss .and.  A%Linder_gamma == B%Linder_gamma) <br>
+ <br>
+<br>
+</code>
+
+<ul>
+ <li>
+<b>cmbtypes.f90 : </b> Add  the following to the end of <code> Type CMBParams </code> 
+<br>
+<br>
+<code>
+     real B1<br>
+     real lambda1_2<br>
+     real B2<br>
+     real lambda2_2<br>
+     real ss<br>
+     real MGQfix<br>
+     real MGRfix<br>
+     real Qnot<br>
+     real Rnot<br>
+     real sss<br>
+     real Linder_gamma<br>
+ <br>
+</code>
+<br>
+ </li>
+</ul>
+
+<ul>
+ <li>
+<b>params_CMB.f90 : </b>Add <code>use mgvariables </code>to the beginning of <code> SetforH </code> subroutine after<code> use bbn </code>. 
+ </li>
+</ul>
+
+<ul>
+ <li>
+<b>params_CMB.f90 : </b> In subroutine <code> SetForH </code>, add the following after <code> CMB%w = Params(7)</code> : <br>
+<br>
+<br>
+<code>
+ CMB%B1 = Params(8)<br>
+ CMB%lambda1_2 = Params(9) <br>
+ CMB%B2 = Params(10) <br>
+ CMB%lambda2_2 = Params(11)<br>
+ CMB%ss = Params(12)<br>
+ CMB%MGQfix  = Params(13)<br>
+ CMB%MGRfix = Params(14)<br>
+ CMB%Qnot = Params(15)<br>
+ CMB%Rnot = Params(16)<br>
+ CMB%sss = Params(17)<br>
+ CMB%Linder_gamma = Params(18)<br>
+ <br>
+</code>
+<br>
+ </li>
+</ul>
+<ul>
+ <li>
+<b>params_CMB.f90 : </b> In subroutine <code> SetForH </code>, add the following at the end : <br>
+<br>
+<br>
+<code>
+if (model == 4 ) then<br>
+CMB%B1 = 4.d0/3.d0<br>
+CMB%lambda1_2 = Params(9)* ((299792458.d-3)**2)/(2.d0 * CMB%H0**2)<br>
+CMB%B2 = 0.5d0<br>
+CMB%lambda2_2 = CMB%B1* CMB%lambda1_2<br>
+CMB%ss = 4.d0<br>
+end if<br>
+if (model == 5 ) then<br>
+CMB%lambda1_2 = Params(9)* ((299792458.d-3)**2)/(2.d0 * CMB%H0**2)<br>
+CMB%B2 = 2.d0/CMB%B1 -1.d0<br>
+CMB%lambda2_2 = CMB%B1* CMB%lambda1_2<br>
+end if<br>
+ <br>
+</code>
+<br>
+ </li>
+</ul>
+<ul>
+ <li>
+<b>params_CMB.f90 : </b>Add <code>use mgvariables </code>to the beginning of <code> CMBParamsToParams </code> subroutine after<code> use cmbtypes </code>. 
+ </li>
+</ul>
+<ul>
+ <li>
+<b>params_CMB.f90 : </b> In subroutine <code> CMBParamsToParams </code>, add the following after <code>  Params(7) = CMB%w</code> : <br>
+<br>
+<br>
+<code>
+Params(8) = CMB%B1<br>
+Params(9) = CMB%lambda1_2<br>
+Params(10) = CMB%B2<br>
+Params(11) =CMB%lambda2_2<br>
+Params(12) = CMB%ss<br>
+if (model == 4) then <br>
+Params(8) = 4.d0/3.d0<br>
+Params(9)= (CMB%lambda1_2 * 2.d0 * CMB%H0**2)/((299792458.d-3)**2)<br>
+Params(10) = 0.5d0<br>
+Params(11) = CMB%B1* CMB%lambda1_2<br>
+Params(12) = 4.d0<br>
+end if<br>
+if (model == 5 ) then<br>
+Params(9)= (CMB%lambda1_2 * 2.d0 * CMB%H0**2)/((299792458.d-3)**2)<br>
+Params(10)= 2.d0/CMB%B1 -1.d0<br>
+Params(11) = CMB%B1* CMB%lambda1_2<br>
+end if<br>
+Params(13) = CMB%MGQfix<br> 
+Params(14) = CMB%MGRfix<br>
+Params(15) = CMB%Qnot<br>
+Params(16) = CMB%Rnot<br>
+Params(17) = CMB%sss<br>
+Params(18) = CMB%Linder_gamma<br>
+ <br>
+</code>
+<br>
+ </li>
+</ul>
+
+<br>
+<br>
+
+<ul>
+ <li>
+<b>driver.F90 : </b> Add<code> use mgvariables </code>after <code>use ParamNames</code>.
+ </li>
+</ul>
+
+<ul>
+ <li>
+<b>driver.F90 : </b>Add <code> model = Ini_Read_Int('model',0)</code> before <code>ParamNamesFile = Ini_Read_String('ParamNamesFile')</code>.
+ </li>
+</ul>
+
+<ul>
+ <li>
+<b>driver.F90 : </b>Add <code> GRtrans = Ini_Read_Double('GRtrans',0.d0) </code> before <code> ParamNamesFile = Ini_Read_String('ParamNamesFile')</code>.
+
+ </li>
+</ul>
+
+<ul>
+ <li>
+<b>params.ini : </b> Add the follwing to the file : 
+<br>
+<br>
+<code>
+
+#MG variables <br>
+#model= 0 : default GR <br>
+#model= 1 : B-Z(mu,gamma) ( introduced in arXiv:0809.3791 ) <br>
+#model= 2 : (Q,R) ( introduced in arXiv:1002.4197 )<br>
+#model= 3 : (Q0,R0,s)( introduced in arXiv:1002.4197 )<br>
+#model= 4 : f(R), only lambda1_2 is used and the value is considered for B0 ( introduced in arXiv:0909.2045 )<br>
+#model= 5 : Chameleon ( Yukawa-type dark matter interaction ), only B1, lambda1_2, SS are used. Agian, lambda1_2 is considered as B0 ( introduced in arXiv:0909.2045 )<br>
+<br>
+model = 0<br>
+<br>
+GRtrans= 0.0<br>
+<br>
+param[B1] = 1.125 1.1 1.14 0.1 0.1 <br>	
+<br>	
+# For B-z models :<br>
+param[lambda1_2] = 0.67e4 0.6e4 0.7e4  10 10<br>	
+<br>	
+# For f(R) and chameleon models :<br>
+param[lambda1_2] =0.001 0 1. 0.05 0.05<br>		
+<br>	
+param[B2] = 0.78 0.6 0.9 0.1 0.1<br>	
+<br>	
+param[lambda2_2] = 1.0e4 0.1e4 10.0e4 1 1<br>	
+<br>	
+param[ss] = 2 1 4 0.1 0.1<br>	
+<br>	
+param[MGQfix]= 1 0.5 1.5 0.03 0.03 <br>	
+<br>	
+param[MGRfix] =1 0.5 1.5 0.03 0.03<br>	
+<br>	
+param[Qnot] = 0 0 0 0 0<br>	
+<br>	
+param[Rnot]= 0 0 0 0 0<br>	
+<br>	
+param[sss] = 0 0 0 0 0<br>	
+<br>	
+param[Linder_gamma] =0.545 0.545 0.545 0 0<br>	
+<br>	
+</code>
+ </li>
+</ul>
+
+<ul>
+ <li>
+<b>params_CMB.paramnames : </b>Add following lines after <code> #constant equation of state parameter for scalar field dark energy </code>:<br>	
+<br>	
+<code>
+B1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	      \beta_1<br>	
+lambda1_2&nbsp;&nbsp;&nbsp;&nbsp;     B_0 <br>	
+B2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	      \beta_2<br>	
+lambda2_2&nbsp;&nbsp;&nbsp;&nbsp;    {\lambda2_2}^2 <br>	
+ss&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	      s<br>	
+MGQfix&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	      MGQfix<br>	
+MGRfix&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	      MGRfix<br>	
+Qnot&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;    Qnot<br>	
+Rnot&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	      Rnot<br>	
+sss&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	      s<br>	
+Linder_gamma&nbsp;  \gamma_L<br>	
+</code>
+ </li>
+</ul>
+
+
+
+<br>
+<br>
+<span> <strong>  Re-compile the code and it should contain MG models. </strong> </span>
+
+</BODY>
+</HTML>
+
