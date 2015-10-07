@@ -5,7 +5,7 @@ Modification of Growth with CAMB (MGCAMB)
 
 By [A. Hojjati](http://www.phas.ubc.ca/~ahojjati/index.html "Home.html"), [G.-B. Zhao](http://icosmology.info/), [L. Pogosian](http://www.sfu.ca/%7Elevon/) and [A. Silvestri](http://space.mit.edu/home/asilvest/Homepage.html)
 
-| 
+
 
 [Our paper](http://arxiv.org/abs/1106.4543)
 
@@ -21,7 +21,7 @@ By [A. Hojjati](http://www.phas.ubc.ca/~ahojjati/index.html "Home.html"), [G.-B.
 
 [Referring to this code](#reference)
 
- |
+
 
 ## <a name="description"></a>Description
 
