@@ -1,0 +1,1212 @@
+--- /camb/equations.f90
++++ /MGCAMB_Jan_2015/equations.f90
+@@ -16,6 +16,31 @@
+     !            optimized neutrino sampling, and reorganised neutrino integration functions
+     ! Feb 2013: fixed various issues with accuracy at larger neutrino masses
+     ! Mar 2014: fixes for tensors with massive neutrinos
++    
++    ! Aug 2015: MGCAMB upgrade and new models. By Alex Zucca azucca@sfu.ca
++    
++!*********************************
++!* MGCAMB mod:
++!* new variables
++!*********************************
++ 
++ module mgvariables
++  use precision
++  integer :: model
++  real(dl) :: GRtrans
++  real(dl) B1, B2, lambda1_2, lambda2_2, ss
++  real(dl) :: MGQfix, MGRfix, Qnot, Rnot, sss
++  real(dl) :: Linder_gamma
++  !************************************
++  !*  New models' parameters
++  !************************************
++  real(dl) :: beta_star, a_star, xi_star  ! for model 7 (symmetron)
++  real(dl) :: beta0, xi0, DilR, DilS, A_2 ! for model 8 and 10 (dilaton)
++  real(dl) :: F_R0, FRn                   ! for model 9 (large curvature f(R))
++ end module mgvariables
++
++!* MGCAMB mode: end
++!**************************************
+ 
+     module LambdaGeneral
+     use precision
+@@ -25,13 +50,37 @@
+     real(dl) :: cs2_lam = 1_dl
+     !comoving sound speed. Always exactly 1 for quintessence
+     !(otherwise assumed constant, though this is almost certainly unrealistic)
+-
++    
+     real(dl), parameter :: wa_ppf = 0._dl !Not used here, just for compatibility with e.g. halofit
+ 
+     logical :: w_perturb = .true.
+     !If you are tempted to set this = .false. read
+     ! http://cosmocoffee.info/viewtopic.php?t=811
+     ! http://cosmocoffee.info/viewtopic.php?t=512
++    
++!******************************
++! MGCAMB mod: 
++! adding some other variables
++!******************************
++    
++    ! AH: Added but not used !
++ logical :: use_tabulated_w = .false.
++ ! this parameter is already used in CAMB 2015... I comment the following line
++ !real(dl) :: wa_ppf = 0._dl
++ real(dl) :: c_Gamma_ppf = 0.4_dl
++ integer, parameter :: nwmax = 5000, nde = 2000
++ integer :: nw_ppf
++ real(dl) w_ppf(nwmax), a_ppf(nwmax), ddw_ppf(nwmax)
++ real(dl) rde(nde),ade(nde),ddrde(nde)
++ real(dl), parameter :: amin = 1.d-9
++ logical :: is_cosmological_constant
++ private nde,ddw_ppf,rde,ade,ddrde,amin
++
++!* MGCAMB mod: end
++!************************************
++    
++    
++    
+ 
+     contains
+ 
+@@ -1181,6 +1233,7 @@
+     use ThermoData
+     use lvalues
+     use ModelData
++    use mgvariables
+     implicit none
+     integer j
+     type(EvolutionVars) EV
+@@ -1200,6 +1253,36 @@
+     real(dl) clxq, vq, diff_rhopi, octg, octgprime
+     real(dl) sources(CTransScal%NumSources)
+     real(dl) ISW
++    
++!*********************************
++!* MGCAMB mod:
++!* adding some local variables
++!*********************************   
++    
++real(dl) adotdota, term1, term2, term3, term4, term5, adotdotdota, Hdotdot, omm, ommdot, ommdotdot
++real(dl) cs2, opacity, dopacity
++real(dl) MG_gamma, MG_gammadot, MG_mu, MG_mudot, etadot
++real(dl) fmu,f1,f2
++real(dl) MG_rhoDelta, MG_alpha, MG_N, MG_D, MG_hdot, Hdot, dgqMG, dgrhoMG
++real(dl) LKA1, LKA2
++real(dl) MG_phi, MG_psi, MG_phidot, MG_psidot
++integer tempmodel
++real(dl) ISW_MG
++real(dl) MGQ,MGR,MGQdot, MGRdot, fQ, k2alpha
++real(dl) polterdot, MG_alphadot
++    
++! Other variables for the new models
++! and for the (m,beta) parametrization
++
++real(dl) m_a               ! this is m(a)
++real(dl) beta_a            ! this is beta(a)
++real(dl) beta_adot, m_adot ! beta'(a), m'(a)
++real(dl) FRm0, FRr
++real(dl) g7, g7dot, h7, h7dot
++
++!* MGCAMB mod: end
++!***********************************
++    
+ 
+     yprime = 0
+     call derivs(EV,EV%ScalEqsToPropagate,tau,y,yprime)
+@@ -1257,12 +1340,48 @@
+     end if
+ 
+     adotoa=sqrt((grho+grhok)/3)
++        
++!************************************
++!* MGCAMB mod:
++!* computing a'' and H'
++!* deciding whether or not to switch
++!* to MG
++!************************************
++    
++adotdota=(adotoa*adotoa-gpres)/2.d0
++Hdot =adotdota-adotoa**2.d0
++!************************************************
++!* In symmetron GRtrans is replaced by a_star,
++!* so here I distinguish the cases
++!************************************************
++if (model == 7) then
++    if (a< a_star) then
++	tempmodel = 0
++    else
++      tempmodel = model
++    end if
++else
++   if ( a.lt. GRtrans ) then
++      tempmodel = 0
++   else
++      tempmodel = model
++   end if
++end if
++
++!* MGCAMB mod: end    
++!********************************
++    
+ 
+     if (EV%no_nu_multpoles) then
++    if (tempmodel == 0) then 
+         z=(0.5_dl*dgrho/k + etak)/adotoa
+         dz= -adotoa*z - 0.5_dl*dgrho/k
+         clxr=-4*dz/k
+         qr=-4._dl/3*z
++        else ! tempmodel /= 0 , using the old expression
++          clxr = 2*(grhoc_t*clxc+grhob_t*clxb)/3/k**2
++          qr= clxr*k/sqrt((grhoc_t+grhob_t)/3)*(2/3._dl)
++        end if ! tempmodel /= 0
+         pir=0
+         pirdot=0
+     else
+@@ -1273,6 +1392,7 @@
+     end if
+ 
+     if (EV%no_phot_multpoles) then
++    if (tempmodel == 0) then 
+         z=(0.5_dl*dgrho/k + etak)/adotoa
+         dz= -adotoa*z - 0.5_dl*dgrho/k
+         clxg=-4*dz/k -4/k*opac(j)*(vb+z)
+@@ -1282,6 +1402,12 @@
+         octg=0
+         octgprime=0
+         qgdot = -4*dz/3
++        else ! tempmodel /= 0 , using the old expression
++ clxg=2*(grhoc_t*clxc+grhob_t*clxb)/3/k**2
++ qg= clxg*k/sqrt((grhoc_t+grhob_t)/3)*(2/3._dl)
++ qgdot =yprime(EV%g_ix+1)
++end if ! tempmodel /= 0
++
+     else
+         if (EV%TightCoupling) then
+             pig = EV%pig
+@@ -1313,18 +1439,222 @@
+ 
+     !  Get sigma (shear) and z from the constraints
+     !  have to get z from eta for numerical stability
+-    z=(0.5_dl*dgrho/k + etak)/adotoa
+-    sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
++
++!*********************************
++!* MGCAMB mod:
++!* if MG then modifying equations
++!*********************************
++    
++if (tempmodel /= 0) then
++!****************************************************
++!* If using models with the mu gamma parametrization
++!****************************************************
++ if (model==1 .or.model==4 .or.model==5.or.model==6 .or. model==7 .or. model==8 .or. model == 9 .or. model == 10) then
++    if(model==1 .or.model==4 .or.model==5.or.model==6) then
++	LKA1 = lambda1_2 * k2 * a**ss
++	LKA2 = lambda2_2 * k2 * a**ss
++
++	MG_mu = (1.d0 + B1 * LKA1)/(1.d0 + LKA1)
++
++	MG_mudot = ((B1 - 1.d0) * adotoa * ss * LKA1) / ((1.d0+LKA1)**2.d0)
++
++	MG_gamma = (1.d0 + B2 * LKA2)/(1.d0 +LKA2)
++
++	MG_gammadot = ((B2 - 1.d0) * adotoa * ss* LKA2) / ((1.d0+LKA2)**2.d0)
++
++	if ( model ==4) then ! correction for f(R) mu function.
++	    MG_mu = MG_mu/(1.d0 - 1.4d-8 * lambda1_2 * a**3)
++	    MG_mudot = MG_mudot/(1.d0 - 1.4d-8 * lambda1_2 * a**3) + 3.d0 * MG_mu* adotoa *a**3 *(1.4d-8 *&
++	    lambda1_2 )/(1.d0 - 1.4d-8 * lambda1_2 * a**3)
++	end if
++
++	if ( model ==6) then
++	    omm=(CP%omegab+CP%omegac)/((CP%omegab+CP%omegac)+(1-CP%omegab-CP%omegac)*a**3)
++	    ommdot=-3.d0*omm**2*a**3*adotoa*(1-CP%omegab-CP%omegac)/(CP%omegab+CP%omegac)
++
++	    MG_mu=2.d0/3.d0*omm**(Linder_gamma-1.d0)*&
++	    (omm**Linder_gamma+2-3.d0*Linder_gamma+3.d0*(Linder_gamma-0.5d0)*omm)
++
++	    MG_mudot = MG_mu/omm*(Linder_gamma-1.d0)*ommdot+&
++	    2.d0/3.d0*omm**(Linder_gamma-1.d0)*ommdot*&
++	    (Linder_gamma*omm**(Linder_gamma-1.d0)+3.d0*(Linder_gamma-0.5d0))
++
++	    MG_gamma = 1.d0
++
++	    MG_gammadot = 0.d0
++
++	end if
++ !*************************************************************
++ !* models with the {m(a), beta(a)} parametrization
++ !*************************************************************
++    else if(model == 7 .or. model ==8 .or. model == 9 .or. model == 10) then
++
++	 if(model == 7) then      ! SYMMETRON
++            beta_a =  beta_star * sqrt(1.d0-(a_star/a)**3.d0)
++            m_a = (CP%H0/3.0D05) / (xi_star) * sqrt(1.d0-(a_star/a)**3.d0)
++            beta_adot = 1.5d0 * (beta_star * (a_star/a)**3.d0 * adotoa) /( sqrt(1.d0-(a_star/a)**3.d0))
++            m_adot = 1.5d0* (CP%H0/3.0D05)/(xi_star) *( (a_star/a)**3.d0 * adotoa) /( sqrt(1.d0-(a_star/a)**3.d0))
++         else if (model==8) then    ! DILATON
++         !*******************************************************
++         !* Dilaton changed on June 16 with the parametrization
++         !* of paper 1206.3568
++         !*******************************************************
++            m_a = (CP%H0/3.0D05) /(xi0) * a**(- DilR)
++            beta_a = beta0 * exp((DilS)/(2.d0* DilR - 3.d0)*(a**(2.d0* DilR - 3.d0)-1.d0))
++            m_adot = - DilR * m_a * adotoa
++            beta_adot = beta_a * (DilS * a**(2.d0* DilR - 3.d0) * adotoa)
++
++          else if (model == 9)then  ! Hu-Sawicki f(R) model
++          
++             beta_a = beta0
++	     beta_adot = 0.d0
++	     FRm0 = (CP%h0/3.0D05)*sqrt((4.d0*CP%omegav + CP%omegab + CP%omegac)/((FRn+1.d0)*F_R0))!note factor of c here
++	     !***************************************************
++	     !* parametrization in paper 1205.6583              *
++	     !***************************************************
++             
++             !FRr = 1.50d0 * FRn + 3.d0
++	     !m_a = FRm0*a**(-FRr)
++	     !m_adot = -FRr * m_A *adotoa    
++	     
++             
++             !*************************************
++	     !* parametrization based on
++             !* paper 1305.5647           
++	     !*************************************
++             m_a = FRm0 * ((4.d0 * CP%omegav + (CP%omegab + CP%omegac)*a**(-3.d0))/(4.d0 * CP%omegav + CP%omegab &
++	     + CP%omegac))**(FRn/2.d0+1.d0) 
++	     m_adot = m_a / (4.d0 * CP%omegav + (CP%omegab + CP%omegac)*a**(-3.d0)) * (-3.d0* FRn / 2.d0 - 3.d0) *&
++	     ((CP%omegab + CP%omegac)* a**(-3.d0) * adotoa )!/(4.d0 * CP%omegav + CP%omegab + CP%omegac))   
++	     
++	  else if (model ==10)then ! Simple DILATON model
++	     
++	     beta_a = beta0*(a**3.d0)
++	     beta_adot = 3.d0 *beta_a*adotoa
++
++	     m_a = sqrt(3.d0*A_2)*(adotoa/a)!/3.0D05 ! H(a) = da/dtau/a**2 = adotoa/a
++	     !***********************************************
++	     !* be careful..
++	     !* Hdot os different from (H/a)dot.. 
++	     !***********************************************
++	     m_adot = sqrt(3.d0*A_2)*(Hdot- adotoa**2.d0)/a !/3.0D05
++	end if
++	!***************************************************************
++	!* Computing mu and gamma (with derivatives) starting from the 
++	!*  m(a) beta(a) parametrization
++	!***************************************************************
++	g7 = (2.d0*beta_a**2.d0)*k2
++	h7 = (m_a**2.d0)*a**2.d0
++	g7dot = 4.d0*beta_a*beta_adot*k2
++	h7dot = (2.d0*a**2.d0)*(m_a*m_adot + (m_a**2.d0) *adotoa)
++	
++	MG_mu = (k2 + g7 + h7)/(k2 + h7)
++	MG_mudot = (g7dot*(k2 + h7) - g7*h7dot)/((k2 + h7)**2.d0)  
++	MG_gamma = (k2 - g7 + h7)/(k2 + g7 + h7)
++	MG_gammadot = 2.d0*(g7*h7dot-g7dot*(k2 + h7))/((k2 + g7 + h7)**2.d0)
++     end if
++ 
++    !**********************************
++    !* converting to synchronous gauge
++    !**********************************
++    MG_rhoDelta = dgrho + 3._dl * adotoa * dgq/ k
++
++    MG_alpha = ( etak/k + MG_mu*(MG_gamma*MG_rhoDelta+(MG_gamma -1.d0)*2.d0* dgpi)/(2.d0*k2)) / adotoa
++
++    sigma = k * MG_alpha
++
++    fmu =k2+0.5d0*MG_gamma*MG_mu*(3.d0*(grhoc_t+grhob_t)+ 4.d0*(grhog_t+grhor_t))
++    f1 = k2+0.5d0*(3.d0*(grhoc_t+grhob_t)+ 4.d0*(grhog_t+grhor_t))
++
++    term1 = MG_gamma*MG_mu* f1 * dgq/k
++
++    term2 = k2*MG_alpha* (MG_mu* MG_gamma- 1.d0)*(grhoc_t+grhob_t+(4.d0/3.d0)*(grhog_t+grhor_t))
++
++    term3= (MG_mu * ( MG_gamma -1.d0)* adotoa - MG_gamma*MG_mudot - MG_gammadot*MG_mu )*MG_rhoDelta
++
++    term4 = (2.d0)*(MG_mu*(MG_gamma - 1.d0)*adotoa - &
++    (MG_gamma - 1.d0)*MG_mudot - MG_gammadot*MG_mu)* dgpi
++
++    term5= (2.d0) * MG_mu*( 1.d0 - MG_gamma)* (grhog_t * pigdot + grhor_t * pirdot)
++
++
++    etadot = (term1 + term2 + term3 + term4 + term5)/( 2.d0 *fmu)
++
++    z = sigma - 3.d0 * etadot/k
++
++    MG_psi = - MG_mu * ( MG_rhoDelta + 4.d0* dgpi)/(2.d0*k2)
++
++    MG_phi = MG_gamma * MG_psi + MG_mu* 2.d0*dgpi/k2
++
++    MG_phidot = etadot - adotoa * (MG_psi - adotoa * MG_alpha)- Hdot * MG_alpha
++
++ else if ( model ==2.or.model ==3) then
++      if (model ==2) then
++	  MGQ = MGQfix
++	  MGR=MGRfix
++	  MGQdot = 0.d0
++	  MGRdot = 0.d0
++
++      else if (model ==3) then
++	  MGQ = 1.d0 + (Qnot - 1.d0)* a**sss
++	  MGR = 1.d0 + (Rnot - 1.d0)* a**sss
++	  MGQdot = (Qnot - 1.d0)*adotoa* sss* a**(sss)
++	  MGRdot = (Rnot - 1.d0)*adotoa* sss* a**(sss)
++      end if
++
++      MG_rhoDelta = dgrho + 3._dl * adotoa * dgq/ k
++
++      MG_phi = - MG_rhoDelta * MGQ/(2.d0*k2)
++      sigma = (etak - k * MG_phi)/adotoa
++      MG_alpha = sigma/k
++
++
++      fQ=k2+(3.d0/2.d0)*MGQ*(grhob_t+grhoc_t+(4.d0/3.d0)*(grhor_t+grhog_t))
++      f1=k2+(3.d0/2.d0)*(grhob_t+grhoc_t+(4.d0/3.d0)*(grhor_t+grhog_t))
++      k2alpha= k * sigma
++
++      term1 = MGQ * f1 * dgq/k
++      term2 = (MGQ - 1.d0) * k2alpha * (grhob_t+grhoc_t+(4.d0/3.d0)*(grhor_t+grhog_t))
++      term3 = -( MGQdot + (MGR-1.d0) * MGQ * adotoa) * MG_rhoDelta
++
++
++      etadot = (term1 + term2 + term3)/( 2.d0 *fQ)
++
++      z = sigma - 3.d0 * etadot/k
++
++      MG_psi = MGR * MG_phi - MGQ * 2.d0 * dgpi/k2
++
++      MG_phidot = etadot - adotoa * (MG_psi - adotoa * MG_alpha)- Hdot * MG_alpha
++
++ end if
++
++ else !GR limit ( model = 0 )
++
++ z=(0.5_dl*dgrho/k + etak)/adotoa
++ sigma=z+1.5_dl*dgq/k2
++ end if
++
++!* MGCAMB mod: end
++!********************************
+ 
+     polter = 0.1_dl*pig+9._dl/15._dl*ypol(2)
+ 
+-    if (CP%flat) then
+-        x=k*(CP%tau0-tau)
+-        divfac=x*x
+-    else
+-        x=(CP%tau0-tau)/CP%r
+-        divfac=(CP%r*rofChi(x))**2*k2
+-    end if
++!*********************************
++!* MGCAMB mod: 
++!* Now we work only with flat 
++!* models
++!*********************************
++if (CP%flat) then
++x=k*(CP%tau0-tau)
++divfac=x*x
++else if (model ==0) then
++x=(CP%tau0-tau)/CP%r
++divfac=(CP%r*rofChi(x))**2*k2
++else
++Stop " MGCAMB is working for flat universe at the moment. Please check www.sfu.ca/~aha25/MGCAMB.html for updates."
++end if 
++!* MGCAMB mod: end
++!***********************************
+ 
+ 
+     if (EV%TightCoupling) then
+@@ -1333,33 +1663,70 @@
+             ypolprime(2)= (pigdot/4._dl)*(1+(5._dl/2._dl)*(dopac(j)/opac(j)**2))
+         else
+             pigdot = -dopac(j)/opac(j)*pig + 32._dl/45*k/opac(j)*(-2*adotoa*sigma  &
+-                +etak/EV%Kf(1)-  dgpi/k +vbdot )
++            +etak/EV%Kf(1)-  dgpi/k +vbdot )
+             ypolprime(2)= pigdot/4
+         end if
+     end if
+ 
+     pidot_sum =  pidot_sum + grhog_t*pigdot + grhor_t*pirdot
+     diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff )*adotoa
+-
++!========================
++! adding MGCAMB patch
++!========================
++    
++if(tempmodel == 0 ) then
++    
++    !================================
++    
+     !Maple's fortran output - see scal_eqs.map
+     !2phi' term (\phi' + \psi' in Newtonian gauge)
+     ISW = (4.D0/3.D0*k*EV%Kf(1)*sigma+(-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k &
+-        -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
+-        -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
++    -diff_rhopi/k**2-1.D0/adotoa*dgrho/3.D0+(3.D0*gpres+5.D0*grho)*sigma/k/3.D0 &
++    -2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j)
+ 
+     !e.g. to get only late-time ISW
+     !  if (1/a-1 < 30) ISW=0
+ 
+     !The rest, note y(9)->octg, yprime(9)->octgprime (octopoles)
+     sources(1)= ISW +  ((-9.D0/160.D0*pig-27.D0/80.D0*ypol(2))/k**2*opac(j)+ &
+-        (11.D0/10.D0*sigma- 3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*octg+3.D0/40.D0*qg)/k- &
+-        (-180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j) + &
+-        (-(9.D0*pigdot+ 54.D0*ypolprime(2))/k**2*opac(j)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2) + &
+-        (-21.D0/5.D0*adotoa*sigma-3.D0/8.D0*EV%Kf(2)*ypolprime(3) + &
+-        vbdot+3.D0/40.D0*qgdot- 9.D0/80.D0*EV%Kf(2)*octgprime)/k + &
+-        (-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j)*ypol(2))/k**2)*vis(j) + &
+-        (3.D0/16.D0*ddvis(j)*pig+9.D0/8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak
+-
++    (11.D0/10.D0*sigma- 3.D0/8.D0*EV%Kf(2)*ypol(3)+vb-9.D0/80.D0*EV%Kf(2)*octg+3.D0/40.D0*qg)/k- &
++    (-180.D0*ypolprime(2)-30.D0*pigdot)/k**2/160.D0)*dvis(j) + &
++    (-(9.D0*pigdot+ 54.D0*ypolprime(2))/k**2*opac(j)/160.D0+pig/16.D0+clxg/4.D0+3.D0/8.D0*ypol(2) + &
++    (-21.D0/5.D0*adotoa*sigma-3.D0/8.D0*EV%Kf(2)*ypolprime(3) + &
++    vbdot+3.D0/40.D0*qgdot- 9.D0/80.D0*EV%Kf(2)*octgprime)/k + &
++    (-9.D0/160.D0*dopac(j)*pig-21.D0/10.D0*dgpi-27.D0/80.D0*dopac(j)*ypol(2))/k**2)*vis(j) + &
++    (3.D0/16.D0*ddvis(j)*pig+9.D0/8.D0*ddvis(j)*ypol(2))/k**2+21.D0/10.D0/k/EV%Kf(1)*vis(j)*etak
++    
++    !=============================
++    ! adding MGCAMB patch
++    !=============================
++    
++
++    
++else
++
++  if(model==1 .or. model==4 .or. model==5.or. model==6 .or. model == 7 .or. model ==8 .or. model == 9 .or. model ==10) MG_psidot = &
++	(MG_phidot - MG_gammadot * MG_psi -MG_mu*MG_gamma* pidot_sum/k2 &
++	-(MG_mudot*MG_gamma+MG_mu*MG_gammadot)*2.d0*dgpi/k2 )/MG_gamma
++	if (tempmodel==2.or.tempmodel==3)&
++	    MG_psidot = MGR * MG_phidot + MGRdot * MG_phi - ( MGQdot * 2.d0 * dgpi + MGQ * pidot_sum)/k2
++	    MG_alphadot= MG_psi - adotoa * MG_alpha
++	    polterdot=9._dl/15._dl*ypolprime(2) + 0.1_dl*pigdot
++
++	    ISW_MG= expmmu(j) * (MG_phidot + MG_psidot)
++	    ISW=ISW_MG
++
++	    sources(1) = ISW+ vis(j)* (clxg/4.D0+polter/1.6d0 + vbdot/k -9.D0*(polterdot)/k2*&
++	    opac(j)/16.D0-9.D0/16.D0*dopac(j)* polter/k2&
++	    + 2.1d0*MG_alphadot + 3.D0/40.D0 *qgdot/k +21.D0/10.D0*dgpi/k2&
++	    +(-3.D0/8.D0*EV%Kf(2)*ypolprime(3) - 9.D0/80.D0*EV%Kf(2)*octgprime)/k)&
++	    + (MG_alpha+vb/k+30.0d0/8.0d0 *polterdot/k2)*dvis(j)+ ddvis(j)*30.0d0/16.0d0*polter/k2
++
++	end if
++
++    
++!===============================================
++    
+     ! Doppler term
+     !   sources(1)=  (sigma+vb)/k*dvis(j)+((-2.D0*adotoa*sigma+vbdot)/k-1.D0/k**2*dgpi)*vis(j) &
+     !         +1.D0/k/EV%Kf(1)*vis(j)*etak
+@@ -1394,8 +1761,22 @@
+         if (tau>tau_maxvis .and. CP%tau0-tau > 0.1_dl) then
+             !phi_lens = Phi - 1/2 kappa (a/k)^2 sum_i rho_i pi_i
+             phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2) - dgpi/k2/2
+-
+-            sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
++!======================
++! adding MGCAMB patch
++!======================
++            !sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
++            
++            if(tempmodel == 0 ) then
++sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
++else
++if (model==1 .or. model==4 .or. model==5.or. model==6 .or. model == 7 .or. model ==8 .or. model==9 .or. model ==10)&
++sources(3) = -MG_mu*(1+MG_gamma)*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
++if(model==2.or.model==3)&
++sources(3) = -MGQ*(1+MGR)*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
++end if
++            
++!=====================================================================
++            
+             !We include the lensing factor of two here
+         else
+             sources(3) = 0
+
+@@ -1923,6 +2304,7 @@
+     !  ayprime is not necessarily GaugeInterface.yprime, so keep them distinct
+     use ThermoData
+     use MassiveNu
++    use mgvariables
+     implicit none
+     type(EvolutionVars) EV
+ 
+@@ -1948,7 +2330,32 @@
+     real(dl) dgpi,dgrho_matter,grho_matter, clxnu_all
+     !non-flat vars
+     real(dl) cothxor !1/tau in flat case
+-
++    
++    !===========================
++    ! adding MGCAMB patch
++    !===========================
++    ! the variable dgpi is already used in CAMB 2015, I will comment the following line
++!real(dl) dgpi
++real(dl) term1, term2, term3,term4, term5, adotdotdota, Hdotdot, omm, ommdot, ommdotdot
++real(dl) MG_gamma, MG_gammadot, MG_mu, MG_mudot, etadot
++real(dl) fmu,f1,f2
++real(dl) MG_rhoDelta, MG_alpha, MG_N, MG_D, MG_hdot, Hdot, dgqMG, dgrhoMG
++real(dl) LKA1, LKA2
++integer tempmodel
++real(dl) MGQ,MGR,MGQdot, MGRdot, fQ, k2alpha, MG_phi, MG_psi, MG_phidot
++!**********************************
++!*
++!* Othervariables for symmetron and
++!* dilaton model
++!*
++!**********************************
++real(dl) beta_a, beta_adot
++real(dl) m_a, m_adot
++real(dl) FRm0, FRr
++real(dl) g7, g7dot, h7, h7dot !other useful numerical variables
++!real(dl) BKM1, BKM2, KM1, DKM1, DBKM1, DBKM2
++!=====================================
++    
+     k=EV%k_buf
+     k2=EV%k2_buf
+ 
+@@ -1991,30 +2398,85 @@
+     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
+     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
+     dgq=grhob_t*vb
++    
++    
++    
++    !=================================
++    ! adding MGCAMB patch
++    !=================================
++    
++    
++dgpi = grhor_t*pir + grhog_t*pig
++
++
++    
++
+ 
+     if (CP%Num_Nu_Massive > 0) then
+         call MassiveNuVars(EV,ay,a,grho_matter,gpres,dgrho_matter,dgq, wnu_arr)
+     end if
+ 
++    ! this term is new in CAMB 2015
+     grho = grho_matter+grhor_t+grhog_t+grhov_t
+-
++    
++    !if (CP%flat) then
++    !    adotoa=sqrt(grho/3)
++    !    cothxor=1._dl/tau
++    !else
++     !   adotoa=sqrt((grho+grhok)/3._dl)
++     !   cothxor=1._dl/tanfunc(tau/CP%r)/CP%r
++    !end if
++
++    !this term is new in CAMB 2015
++    dgrho = dgrho_matter
++    
+     if (CP%flat) then
+-        adotoa=sqrt(grho/3)
+-        cothxor=1._dl/tau
+-    else
+-        adotoa=sqrt((grho+grhok)/3._dl)
+-        cothxor=1._dl/tanfunc(tau/CP%r)/CP%r
+-    end if
+-
+-    dgrho = dgrho_matter
+-
+-    if (w_lam /= -1 .and. w_Perturb) then
+-        clxq=ay(EV%w_ix)
++ adotoa=sqrt(grho/3)
++
++ gpres=gpres + (grhog_t+grhor_t)/3.d0 +grhov_t*w_lam
++ adotdota=(adotoa*adotoa-gpres)/2.d0
++ Hdot =adotdota-adotoa**2.d0
++
++ cothxor=1._dl/tau
++
++else if (model ==0) then
++ adotoa=sqrt((grho+grhok)/3._dl)
++ cothxor=1._dl/tanfunc(tau/CP%r)/CP%r
++else
++Stop " MGCAMB is working for flat universe at the moment. Please check www.sfu.ca/~aha25/MGCAMB.html for updates."
++end if
++
++!************************************************
++!* switch MG on according to the model.         *
++!* (in model 7 GRtrans is replaced by a_star)   *
++!*                                              *
++!************************************************
++
++if (model == 7) then
++    if (a< a_star) then
++	tempmodel = 0
++    else
++      tempmodel = model
++    end if
++else
++   if ( a.lt. GRtrans ) then
++      tempmodel = 0
++   else
++      tempmodel = model
++   end if
++end if
++    
++    
++
++    !if (w_lam /= -1 .and. w_Perturb) then
++     if (w_lam /= -1 .and. w_Perturb.and. ay(1).lt.GRtrans) then 
++     clxq=ay(EV%w_ix)
+         vq=ay(EV%w_ix+1)
+         dgrho=dgrho + clxq*grhov_t
+         dgq = dgq + vq*grhov_t*(1+w_lam)
+     end if
+ 
++!==============================================================
+     if (EV%no_nu_multpoles) then
+         !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
+         !Approximate total density variables with just matter terms
+@@ -2063,25 +2525,322 @@
+ 
+     !  Get sigma (shear) and z from the constraints
+     ! have to get z from eta for numerical stability
+-    z=(0.5_dl*dgrho/k + etak)/adotoa
+-    if (CP%flat) then
+-        !eta*k equation
+-        sigma=(z+1.5_dl*dgq/k2)
+-        ayprime(2)=0.5_dl*dgq
+-    else
+-        sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
+-        ayprime(2)=0.5_dl*dgq + CP%curv*z
+-    end if
+-
+-    if (w_lam /= -1 .and. w_Perturb) then
+-        ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
+-            -(1+w_lam)*k*vq -(1+w_lam)*k*z
++    
++    !=================================
++    ! adding MGCAMB patch
++    !=================================
++    
++    !z=(0.5_dl*dgrho/k + etak)/adotoa
++    !if (CP%flat) then
++    !    !eta*k equation
++    !    sigma=(z+1.5_dl*dgq/k2)
++    !    ayprime(2)=0.5_dl*dgq
++    !else
++    !    sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
++    !    ayprime(2)=0.5_dl*dgq + CP%curv*z
++    !end if
++   ! 
++   ! if (w_lam /= -1 .and. w_Perturb) then
++    
++    if (tempmodel /= 0) then
++
++	if (model == 1 .or. model ==4 .or. model == 5 .or. model == 6 .or. model== 7 .or. model == 8 .or. model == 9 .or. model ==10) then    
++    
++	    if (model==1 .or.model==4 .or.model==5.or.model==6) then
++
++		LKA1 = lambda1_2 * k2 * a**ss
++		LKA2 = lambda2_2 * k2 * a**ss
++
++		MG_mu = (1.d0 + B1 * LKA1)/(1.d0 + LKA1)
++
++		MG_mudot = ((B1 - 1.d0) * adotoa * ss * LKA1) / ((1.d0+LKA1)**2.d0)
++
++		MG_gamma = (1.d0 + B2 * LKA2)/(1.d0 +LKA2)
++
++		MG_gammadot = ((B2 - 1.d0) * adotoa * ss* LKA2) / ((1.d0+LKA2)**2.d0)
++
++		if ( model ==4) then
++		    MG_mu = MG_mu/(1.d0 - 1.4d-8 * lambda1_2 * a**3)
++		    MG_mudot = MG_mudot/(1.d0 - 1.4d-8 * lambda1_2 * a**3) + 3.d0 * MG_mu* adotoa *a**3 *&
++		    (1.4d-8 * lambda1_2)/(1.d0 - 1.4d-8 * lambda1_2 * a**3)
++		end if
++
++		if ( model ==6) then
++		    omm=(CP%omegab+CP%omegac)/((CP%omegab+CP%omegac)+(1-CP%omegab-CP%omegac)*a**3)
++		    ommdot=-3.d0*omm**2*a**3*adotoa*(1-CP%omegab-CP%omegac)/(CP%omegab+CP%omegac)
++
++		    MG_mu=2.d0/3.d0*omm**(Linder_gamma-1.d0)*&
++		    (omm**Linder_gamma+2-3.d0*Linder_gamma+3.d0*(Linder_gamma-0.5d0)*omm)
++
++		    MG_mudot = MG_mu/omm*(Linder_gamma-1.d0)*ommdot+&
++		    2.d0/3.d0*omm**(Linder_gamma-1.d0)*ommdot*&
++		    (Linder_gamma*omm**(Linder_gamma-1.d0)+3.d0*(Linder_gamma-0.5d0))
++
++		    MG_gamma = 1.d0
++
++		    MG_gammadot = 0.d0
++
++		end if
++	    !*******************************************
++	    !*
++	    !* Adding symmetron and dilaton model.
++	    !* (adding Brax et al. parametrization)
++	    !* 
++	    !*******************************************
++	    else if (model == 7 .or. model == 8 .or. model == 9 .or. model ==10) then    
++
++		if(model == 7) then      ! SYMMETRON
++            beta_a =  beta_star * sqrt(1.d0-(a_star/a)**3.d0)
++            m_a = (CP%H0/3.0D05) / (xi_star) * sqrt(1.d0-(a_star/a)**3.d0)
++            beta_adot = 3.d0/2.d0 * (beta_star * (a_star/a)**3.d0 * adotoa) /( sqrt(1.d0-(a_star/a)**3.d0))
++            m_adot = 3.d0/2.d0* (CP%H0/3.0D05)/(xi_star) *( (a_star/a)**3.d0 * adotoa) /( sqrt(1.d0-(a_star/a)**3.d0))
++            ! print*, 'beta(a)', beta_a
++            !print*, 'm(a)', m_a
++            !print*, 'beta_prime(a) ', beta_adot
++            !print*, 'm_prime(a)', m_adot
++            !print*,'-------------'
++         else if (model==8) then    ! DILATON
++         !*******************************************************
++         !* Dilaton changed on June 16 with the parametrization
++         !* of paper 1206.3568
++         !*******************************************************
++
++         m_a = (CP%H0/3.0D05) /(xi0) * a**(- DilR)
++         beta_a = beta0 * exp((DilS)/(2.d0* DilR - 3.d0)*(a**(2.d0* DilR - 3.d0)-1.d0))
++         m_adot = - DilR * m_a * adotoa
++         beta_adot = beta_a * (DilS * a**(2.d0* DilR - 3.d0) * adotoa)
++            !beta_a = beta0 * a**3.d0
++            !m_a = sqrt(A_2 * 3.d0) * (adotoa)
++            !beta_adot = 3.d0 *beta0 * a2
++            !m_adot = sqrt(A_2 * 3.d0) * Hdot
++            !print*, 'beta(a)', beta_a
++            !print*, 'm(a)', m_a
++            !print*, 'beta_prime(a) ', beta_adot
++            !print*, 'm_prime(a)', m_adot
++            !print*,'-------------'
++
++          else if (model == 9)then  ! large curvature f(R)
++          
++             beta_a = beta0
++	     beta_adot = 0.d0
++	     FRm0 = (CP%h0/3.0D05)*sqrt((4.d0*CP%omegav + CP%omegab + CP%omegac)/((FRn+1.d0)*F_R0))!note factor of c here
++
++
++             !***************************************************
++	     !* parametrization in paper 1205.6583              *
++	     !* this was introduced in Aaron code.              *
++	     !***************************************************
++             
++             !FRr = 1.50d0 * FRn  + 3.d0
++	     !m_a = FRm0*a**(-FRr)
++	     !m_adot = -FRr*m_a*adotoa 
++
++             !************************************************
++             !* parametrization in file paper in Dropbox     *
++             !************************************************
++             
++	     m_a = FRm0 * ((4.d0 * CP%omegav + (CP%omegab + CP%omegac)*a**(-3.d0))/(4.d0 * CP%omegav + CP%omegab &
++	     + CP%omegac))**(FRn/2.d0+1.d0) 
++	     m_adot = m_a / (4.d0 * CP%omegav + (CP%omegab + CP%omegac)*a**(-3.d0)) * (-3.d0* FRn / 2.d0 - 3.d0) *&
++	     ((CP%omegab + CP%omegac)* a**(-3.d0) * adotoa )!/(4.d0 * CP%omegav + CP%omegab + CP%omegac))   
++	   
++	  else if (model ==10)then ! Aaron's dilaton model
++	     
++	     beta_a = beta0*(a**3.d0)
++	     beta_adot = 3.d0 *beta_a*adotoa
++
++	     m_a = sqrt(3.d0*A_2)*(adotoa/a)!/3.0D05 ! H(a) = da/dtau/a**2 = adotoa/a
++	     !***********************************************
++	     !* I changed Aaron's equations.
++	     !* Hdot os different from (H/a)dot....
++	     !***********************************************
++	     m_adot = sqrt(3.d0*A_2)*(Hdot- adotoa**2.d0)/a !/3.0D05
++	end if
++			!BKM1 = (1.d0 + 2.d0 * beta_a**2.d0)*k2 + (m_a**2.d0) * a2
++	!BKM2 = (1.d0 - 2.d0 * beta_a**2.d0)*k2 + (m_a**2.d0) * a2
++	!KM1 = k2 + (m_a**2.d0) * a2
++	!DBKM1 = 4.d0 * beta_a * beta_adot + 2.d0 * m_a * m_adot * a2 + 2.d0 * (m_a**2.d0) * a2 * adotoa 
++	!DBKM2 = 4.d0 * beta_a * beta_adot + 2.d0 * m_a * m_adot * a2 + 2.d0 * ( m_a**2.d0) * a2 * adotoa 
++	!DKM1 =  2.d0 * m_a * m_adot * a2 + 2.d0 * (m_a**2.d0) * a2 * adotoa 
++	
++	!MG_mu = (BKM1)/(KM1)
++	!MG_mudot = (DBKM1)/(KM1) -(BKM1*DKM1)/(DKM1**2.d0)
++	!MG_gamma = (BKM2)/(BKM1)
++	!MG_gammadot = (DBKM2)/(BKM1) -(BKM2 * DBKM1)/(DBKM1**2.d0)
++		
++		
++		
++		g7 = (2.d0*beta_a**2.d0)*k2
++		h7 = (m_a**2.d0)*a2
++		g7dot = 4.d0*beta_a*beta_adot*k2
++		h7dot = (2.d0*a**2.d0)*(m_a*m_adot + (m_a**2.d0) *adotoa)
++		!print*,g7, k2, h7
++		MG_mu = (k2 + g7 + h7)/(k2 + h7)
++		MG_mudot = (g7dot*(k2 + h7) - g7*h7dot)/((k2 + h7)**2.d0)  
++		MG_gamma = (k2 - g7 + h7)/(k2 + g7 + h7)
++		MG_gammadot = 2.d0*(g7*h7dot-g7dot*(k2 + h7))/((k2 + g7 + h7)**2.d0)
++
++		
++		!print*, 'mu', MG_mu
++	    !print*, 'gamma', MG_gamma
++	    !print*, 'mu_prime(a) ', MG_mudot
++	    !print*, 'gamma_prime(a)', MG_gammadot
++	    !print*,'-------------'
++	    end if
++
++            MG_rhoDelta = dgrho + 3._dl * adotoa * dgq/ k
++
++	    MG_alpha = ( etak/k + MG_mu*(MG_gamma*MG_rhoDelta+(MG_gamma -1.d0)*2.d0* dgpi)/(2.d0*k2)) / adotoa
++
++	    sigma = k * MG_alpha
++	    ! old comment:Small k: potential problem with stability, using full equations earlier is NOT moreaccurate in general
++	    ! Easy to see instability in k \sim 1e-3 by tracking evolution of vb
++
++	    ! Use explicit equation for vb if appropriate
++
++
++	    if (EV%no_nu_multpoles) then
++		pirdot = 0.d0
++	    else
++	    ! Old expression
++	    ! pirdot=k*(0.4_dl*qr-0.6_dl*ay(EV%lmaxg+10)+8._dl/15._dl*sigma)
++
++	    ! New expression,
++
++		if (EV%lmaxnr>2) then
++		    pirdot=EV%denlk(2)*qr- EV%denlk2(2)*ay(ix+1)+8._dl/15._dl*k*sigma
++		else
++
++		    pirdot=EV%denlk(2)*qr +8._dl/15._dl*k*sigma
++		end if
++	    end if
++
++
++	    if (EV%no_phot_multpoles) then
++		pigdot = 0.d0
++	    else
++
++		if (EV%tightcoupling) then
++		    pigdot = 0.d0 ! It could improve to second order
++
++		else
++
++		    polter = pig/10+9._dl/15*E2 !2/15*(3/4 pig + 9/2 E2)
++
++		    ! Old expression
++		    !pigdot=0.4_dl*k*qg-0.6_dl*k*ay(9)-opacity*(pig - polter) +8._dl/15._dl*k*sigma
++
++		    ! New expression
++		    if (EV%lmaxg>2) then
++			pigdot=EV%denlk(2)*qg-EV%denlk2(2)*ay(ix+1)-opacity*(pig - polter) &
++			+8._dl/15._dl*k*sigma
++		    else !closed case
++			pigdot=EV%denlk(2)*qg-opacity*(pig - polter) +8._dl/15._dl*k*sigma
++		    endif
++		end if
++
++	    end if !no_phot_multpoles
++
++fmu =k2+0.5d0*MG_gamma*MG_mu*(3.d0*(grhoc_t+grhob_t)+ 4.d0*(grhog_t+grhor_t))
++f1 = k2+0.5d0*(3.d0*(grhoc_t+grhob_t)+ 4.d0*(grhog_t+grhor_t))
++
++term1 = MG_gamma*MG_mu* f1 * dgq/k
++
++term2 = k2*MG_alpha* (MG_mu* MG_gamma- 1.d0)*(grhoc_t+grhob_t+(4.d0/3.d0)*(grhog_t+grhor_t))
++
++term3= (MG_mu * ( MG_gamma -1.d0)* adotoa - MG_gamma*MG_mudot - MG_gammadot*MG_mu )*MG_rhoDelta
++
++term4 = (2.d0)*(MG_mu*(MG_gamma - 1.d0)*adotoa - &
++(MG_gamma - 1.d0)*MG_mudot - MG_gammadot*MG_mu)* dgpi
++
++term5= (2.d0) * MG_mu*( 1.d0 - MG_gamma)* (grhog_t * pigdot + grhor_t * pirdot)
++
++
++etadot = (term1 + term2 + term3 + term4 + term5)/( 2.d0 *fmu)
++
++z = sigma - 3.d0 * etadot/k
++
++MG_psi = - MG_mu * ( MG_rhoDelta + 4.d0* dgpi)/(2.d0*k2)
++
++MG_phi = MG_gamma * MG_psi + MG_mu* 2.d0*dgpi/k2
++
++MG_phidot = etadot - adotoa * (MG_psi - adotoa * MG_alpha)- Hdot * MG_alpha
++
++else if ( model ==2.or.model ==3) then
++if (model ==2) then
++MGQ = MGQfix
++MGR=MGRfix
++MGQdot = 0.d0
++MGRdot = 0.d0
++
++else if (model ==3) then
++MGQ = 1.d0 + (Qnot - 1.d0)* a**sss
++MGR = 1.d0 + (Rnot - 1.d0)* a**sss
++MGQdot = (Qnot - 1.d0)*adotoa* sss* a**(sss)
++MGRdot = (Rnot - 1.d0)*adotoa* sss* a**(sss)
++
++end if
++
++MG_rhoDelta = dgrho + 3._dl * adotoa * dgq/ k
++
++MG_phi = - MG_rhoDelta * MGQ/(2.d0*k2)
++sigma = (etak - k * MG_phi)/adotoa
++MG_alpha = sigma/k
++
++
++
++fQ=k2+(3.d0/2.d0)*MGQ*(grhob_t+grhoc_t+(4.d0/3.d0)*(grhor_t+grhog_t))
++f1=k2+(3.d0/2.d0)*(grhob_t+grhoc_t+(4.d0/3.d0)*(grhor_t+grhog_t))
++k2alpha= k * sigma
++
++term1 = MGQ * f1 * dgq/k
++term2 = (MGQ - 1.d0) * k2alpha * (grhob_t+grhoc_t+(4.d0/3.d0)*(grhor_t+grhog_t))
++term3 = -( MGQdot + (MGR-1.d0) * MGQ * adotoa) * MG_rhoDelta
++
++
++etadot = (term1 + term2 + term3)/( 2.d0 *fQ)
++
++z = sigma - 3.d0 * etadot/k
++
++MG_psi = MGR * MG_phi - MGQ * 2.d0 * dgpi/k2
++
++MG_phidot = etadot - adotoa * (MG_psi - adotoa * MG_alpha)- Hdot * MG_alpha
++
++end if
++ayprime(2)= k*etadot
++
++else !GR limit ( model = 0 )
++! Get sigma (shear) and z from the constraints
++! have to get z from eta for numerical stability
++z=(0.5_dl*dgrho/k + etak)/adotoa
++if (CP%flat) then
++!eta*k equation
++sigma=(z+1.5_dl*dgq/k2)
++ayprime(2)=0.5_dl*dgq
++else
++sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
++ayprime(2)=0.5_dl*dgq + CP%curv*z
++end if
++end if
++
++
++
++
++! if (w_lam /= -1 .and. w_Perturb) then
++
++if (w_lam /= -1 .and. w_Perturb .and. ay(1).lt.GRtrans) then
++    
++    
++    
++    !=======================================================
++    ayprime(EV%w_ix)= -3*adotoa*(cs2_lam-w_lam)*(clxq+3*adotoa*(1+w_lam)*vq/k) &
++        -(1+w_lam)*k*vq -(1+w_lam)*k*z
+ 
+         ayprime(EV%w_ix+1) = -adotoa*(1-3*cs2_lam)*vq + k*cs2_lam*clxq/(1+w_lam)
+     end if
+ 
+
+@@ -2135,19 +2894,31 @@
+             !  8*pi*G*a*a*SUM[rho_i*sigma_i]
+             dgs = grhog_t*pig+grhor_t*pir
+ 
++            
++            !=========================
++            ! adding MGCAMB patch
++            !=========================
+             ! Define shear derivative to first order
+-            sigmadot = -2*adotoa*sigma-dgs/k+etak
+-
++            !sigmadot = -2*adotoa*sigma-dgs/k+etak
++
++            if ( tempmodel ==0) then
++ sigmadot = -2*adotoa*sigma-dgs/k+etak
++else
++ sigmadot = k * (MG_psi - adotoa * MG_alpha)
++end if
++            
++            !=======================================================
++            
+             !Once know slip, recompute qgdot, pig, pigdot
+             qgdot = k*(clxg/4._dl-pig/2._dl) +opacity*slip
+ 
+             
+
+
+
+
+
+
+--- /home/physgrad/Programs/cosmomc/cosmomc/camb/inidriver.F90
++++ /home/physgrad/Programs/cosmomc/MGCAMB_Jan_2015/inidriver.F90
+@@ -14,6 +14,12 @@
+     use Bispectrum
+     use CAMBmain
+     use NonLinear
++!******************************
++!* MGCAMB mod: 
++!* using mgvariables
++    use mgvariables
++!* MGCAMB mod: end
++!******************************
+ #ifdef NAGF95
+     use F90_UNIX
+ #endif
+@@ -103,6 +109,93 @@
+     call DarkEnergy_ReadParams(DefIni)
+ 
+     P%h0     = Ini_Read_Double('hubble')
++    
++
++    
++    
++!**************************************
++!* MGCAMB mod:
++!* reading models and params
++!**************************************
++model = Ini_Read_Int('model',0)
++write(*,*) "---------------------"
++write(*,*) "Model : ", model
++write(*,*) "---------------------"
++GRtrans= Ini_Read_Double('GRtrans',0.d0)
++
++if (model ==1) then
++B1= Ini_Read_Double('B1',0.d0)
++B2= Ini_Read_Double('B2',0.d0)
++lambda1_2= Ini_Read_Double('lambda1_2',0.d0)
++lambda2_2= Ini_Read_Double('lambda2_2',0.d0)
++ss= Ini_Read_Double('ss',0.d0)
++
++else if (model ==2) then
++MGQfix= Ini_Read_Double('MGQfix',1.d0)
++MGRfix= Ini_Read_Double('MGRfix',1.d0)
++
++else if (model ==3 ) then
++Qnot= Ini_Read_Double('Qnot',1.d0)
++Rnot= Ini_Read_Double('Rnot',1.d0)
++sss = Ini_Read_Double('sss',0.d0)
++
++else if (model ==4) then
++B1 = 4.d0/3.d0
++lambda1_2= Ini_Read_Double('B0',0.d0) ! it is considered as the B0 parameter here
++lambda1_2 = (lambda1_2*(299792458.d-3)**2)/(2.d0*p%H0**2)
++B2 = 0.5d0
++lambda2_2 = B1* lambda1_2
++ss = 4.d0
++
++else if (model ==5) then
++B1 = Ini_Read_Double('beta1',0.d0)
++lambda1_2= Ini_Read_Double('B0',0.d0)
++lambda1_2 = (lambda1_2*(299792458.d-3)**2)/(2.d0*p%H0**2)
++B2 = 2.d0/B1 -1.d0
++lambda2_2 = B1* lambda1_2
++ss= Ini_Read_Double('s',0.d0)
++
++else if (model ==6) then
++Linder_gamma = Ini_Read_Double('Linder_gamma',0.d0)
++
++! New models added in the last version
++else if (model == 7) then 
++! SYMMETRON
++beta_star = Ini_Read_Double('beta_star', 0.d0)
++xi_star = Ini_Read_Double ('xi_star', 0.d0)
++a_star = Ini_Read_Double('a_star', 0.d0)
++GRtrans = a_star
++
++else if (model == 8) then
++! GENERALIZED DILATON
++beta0 = Ini_Read_Double('beta0', 0.d0)
++xi0 = Ini_Read_Double('xi0', 0.d0)
++DilR = Ini_Read_Double('DilR', 0.d0)
++DilS = Ini_Read_Double('DilS', 0.d0)
++
++else if (model == 9) then
++! HU SAWICKI MODEL
++F_R0 = Ini_Read_Double('F_R0', 0.d0)
++FRn = Ini_Read_Double('FRn', 0.d0)
++beta0 = 1.d0/sqrt(6.d0)
++
++else if (model ==10) then
++! SIMPLE DILATON
++beta0 = Ini_Read_Double('beta0', 0.d0)
++A_2 = Ini_Read_Double('A2',0.d0)
++
++else if (model /= 0) then
++print*, '***please choose a model***'
++stop
++end if
++!* MGCAMB mod: end
++!*****************************************************
++    
++    
++    
++    
++    
++    
+ 
+     if (Ini_Read_Logical('use_physical',.false.)) then
+         P%omegab = Ini_Read_Double('ombh2')/(P%H0/100)**2
+
+
+
+--- /home/physgrad/Programs/cosmomc/cosmomc/camb/params.ini
++++ /home/physgrad/Programs/cosmomc/MGCAMB_Jan_2015/params.ini
+@@ -1,13 +1,74 @@
++#MG variables
++#model= 0 : default GR
++#model= 1 : BZ(mu,gamma) ( introduced in arXiv:0809.3791 )
++#model= 2 : (Q,R) ( introduced in arXiv:1002.4197 )
++#model= 3 : (Q0,R0,s)( introduced in arXiv:1002.4197 )
++#model= 4 : f(R) ( introduced in arXiv:0909.2045 )
++#model= 5 : Chameleon ( introduced in arXiv:0909.2045 )
++#model= 6 : Linder's gamma (introduced in arXiv:0507263 )
++#model= 7 : Symmetron model (introduced in June 2015)
++#model= 8 : Dilaton model (intorduced in June 2015)
++#model= 9 : Large curvature f(R) (introduced in June 2015)
++#model= 10: Aaron dilaton model (introduced in July 2015) 
++ 
++
++model = 8
++
++#Scale factor at which MG is turned on (in model 7 it is replaced by a_star)
++GRtrans= 0.001
++
++#BZ parameters:
++B1 = 1.3333333
++lambda1_2 = 7500
++B2 = 0.5
++lambda2_2 = 10000
++ss = 4
++
++#Bean parameters :
++#(Q,R)
++MGQfix=1
++MGRfix=1
++
++#(Q0,R0,s)
++Qnot=1.
++Rnot=1.
++sss=0.
++
++#f(R) and Chameleon models :
++B0 = 0.5
++beta1 = 1.3333333
++s = 4
++
++# Linder's gamma :
++Linder_gamma = 0.545
++
++#Symmetron models
++beta_star = 0.5d0
++a_star = 0.5d0
++xi_star = 0.001d0
++
++# Dilaton parameters (Simple model uses beta0 and A2, generalized model uses beat0, xi0, S and R)
++beta0 = 0.5
++xi0 = 0.0001
++DilS = 0.24d0
++DilR = 1.d0
++A2 = 1e6
++
++# Hu-Sawicki model params
++F_R0 = 0.000001d0
++FRn = 1.d0
++
++
+ #Parameters for CAMB
+ 
+
+

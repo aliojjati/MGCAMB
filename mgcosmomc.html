@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<!--
+	Linear by TEMPLATED
+    templated.co @templatedco
+    Released for free under the Creative Commons Attribution 3.0 license (templated.co/license)
+-->
+<html>
+  <head>
+    <title>MGCosmoMC</title>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta name="description" content="">
+    <meta name="keywords" content="">
+    <link
+href="http://fonts.googleapis.com/css?family=Roboto:400,100,300,700,500,900"
+      rel="stylesheet" type="text/css">
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+    <script src="js/skel.min.js"></script>
+    <script src="js/skel-panels.min.js"></script>
+    <script src="js/init.js"></script> <noscript>
+			<link rel="stylesheet" href="css/skel-noscript.css">
+			<link rel="stylesheet" href="css/style.css">
+			<link rel="stylesheet" href="css/style-desktop.css">
+		</noscript>
+  </head>
+  <body>
+    <!-- Header -->
+    <div id="header">
+      <div id="nav-wrapper">
+        <!-- Nav -->
+        <nav id="nav">
+          <ul>
+            <li><a href="home.html">Home</a></li>
+            <li class="active"><a href="mgcamb.html">MGCAMB</a></li>
+            <li><a href="mgcosmomc.html">MGCosmoMC</a></li>
+            <li><a href="cosmofish.html">CosmoFish</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="container">
+        <!-- Logo -->
+        <div id="logo">
+          <h1><a href="#">MGCosmoMC</a></h1>
+          <span class="tag"></span> </div>
+      </div>
+    </div>
+    <!-- Header -->
+    <!-- Main -->
+    <div id="main">
+      <div class="container">
+        <div class="row">
+          <!-- Sidebar -->
+          <div id="sidebar" class="4u">
+            <section>
+              <div class="row">
+                <section class="6u">
+                  <ul class="default">
+                    <li><a href="mgcosmomc.html#description">Description</a></li>
+                    <li><a href="mgcosmomc.html#download">Download</a></li>
+                    <li><a href="downloads/MGCosmoMC-July15.tar.gz">Download
+                        Latest Version</a></li>
+                    <li><a href="mgcosmomc.html#installation">Installation</a></li>
+                    <li><a href="mgcosmomc.html#version">Version History</a></li>
+                  </ul>
+                  <br>
+                  MGCAMB citations: <a
+href="https://inspirehep.net/search?ln=en&amp;p=refersto%3Arecid%3A915031"><img
+                      src="images/inspire_logo_hep.png"></a> <br>
+                </section>
+              </div>
+            </section>
+          </div>
+          <!-- Content -->
+          <div id="content" class="8u skel-cell-important">
+            <section>
+              <header>
+                <h2><span style="color:#80BA8E">MGCosmoMC</span></h2>
+                <span class="byline">Fit <a>M</a>odified <a>G</a>ravity
+                  models with <a
+                    href="http://cosmologist.info/cosmomc/">CosmoMC</a></span>
+              </header>
+              <br>
+              <header id="description"> <span class="byline">Description</span>
+              </header>
+              <p>
+                <a href="http://cosmologist.info/cosmomc/">CosmoMC</a>
+                is a Fortran 2008 Markov-Chain Monte-Carlo (MCMC) engine
+                for exploring cosmological parameter space together with
+                Fortran and python code for analysing the sampling.
+                Our <a href="mgcamb.html">MGCAMB</a> patch can be
+                embedded into CosmoMC to fit Modified Gravity (MG)
+                models to data.<br>
+              </p>
+              <p>The use of our patches is free, however, we request
+                that you cite the following two papers: <a
+                  href="http://arxiv.org/abs/1106.4543">Testing Gravity
+                  with CAMB and CosmoMC</a> and <a
+                  href="http://arxiv.org/abs/0809.3791">Searching for
+                  modified growth patterns with tomographic surveys</a>
+              </p>
+              <header id="download">
+                <span class="byline">Download</span>
+              </header>
+              <p>
+                The MG patches for the different versions of CosmoMC can
+                be obtained <a href="get_mgcosmomc.html">here</a>. The
+                latest version (compatible with CosmoMC July 2015) can
+                be obtained directly from <a
+                  href="downloads/MGCosmoMC-July15.tar.gz">here</a>.
+                Make sure to match the MGCosmoMC version with the
+                CosmoMC version you have to avoid compatibility issues.
+              </p>
+              <header id="installation">
+                <span class="byline">Installation</span>
+              </header>
+              <p>
+                Once you have downloaded the patch, you only need to
+                extract the compressed folder, replace the CosmoMC files
+                with those just extracted and re-compile the code.
+              </p>
+              Another approach is to manually modify the sources files
+              following these <a href="get_mgcosmomc_instructions.html">instructions</a>
+              and then recompile the code.
+              <header id="version">
+                <span class="byline">Version History</span>
+              </header>
+              <p>
+                <b>February, 2016: </b> <b>Major upgrade</b> (thanks
+                to
+                Alex Zucca) to CAMB November 2015 version, and CosmoMC
+                July 2015 version. Planck data and PR2 likelihood are
+                included. <br>
+                Minor bug fixes in ISW terms.
+                <br>
+                MG functions are now defined in the "mgvariables" module at the beginning of <kbd>equations.f90.</kbd> <br>
+                Added new models based on the m(a), β(a) parametrization
+                discussed in <a href="http://arxiv.org/abs/1511.05962">this
+                    paper</a><br>
+                
+              </p>
+              <p>
+                <b>February, 2014: </b> <b>Major upgrade</b> to
+                CosmoMC, March 2013 version. Planck data can now be
+                used.
+              </p>
+              <p>
+              </p>
+              <p>
+                <b>December, 2013:</b> Bug fixes thanks to Bin Hu and
+                Jasson Dossett.
+              </p>
+              <p>
+                <b>February, 2012:</b> MGCAMB, January-12 version.
+              </p>
+              <b>January, 2012:</b> MGCAMB, October-11 version.
+              <p></p>
+              <b>July, 2011:</b> MGCAMB, July-11 version.
+              <p></p>
+              <p>
+                This version (V.2) of MGCAMB is written based on CAMB
+                (instead of <a href="http://camb.info/sources/">CAMBsources</a>)
+                which makes it
+                easier to use with Cosmomc. It also generalizes the
+                previous
+                parametrization making it applicable to the entire range
+                of redshifts
+                and includes different components of the energy-momentum
+                tensor. It
+                also includes other modified-gravity parametrizations
+                introduced in the
+                literature.
+              </p>
+              <p>
+                The <a
+                  href="http://icosmology.info/website/MGCAMB.html">previous</a>
+                version of MGCAMB written by G.B. Zhao, L. Pogosian, A.
+                Silvestri and J. Zylberberg was based on <a
+                  href="http://camb.info/sources/">CAMBsources</a>.
+                That version
+                modified GR equations for z&gt;30, i.e. at late times
+                when the
+                contribution of radiation is negligible.<br>
+              </p>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /Main -->
+    <!-- Footer -->
+    <div id="footer">
+      <center>
+        <div class="row">
+          <section class="4u">
+            <a href="mgcamb.html" class="button button-style1">MGCAMB</a>
+            <br>
+            <br>
+            <p>Compute cosmological observables in Modified Gravity
+              models.</p>
+          </section>
+          <section class="4u">
+            <a href="mgcosmomc.html" class="button button-style1">MGCosmoMC</a>
+            <br>
+            <br>
+            <p>Fit Modified Gravity models to data.<br>
+              <br>
+            </p>
+          </section>
+          <section class="4u">
+            <a href="cosmofish.html" class="button button-style1">CosmoFish</a>
+            <br>
+            <br>
+            <p>Forecasts.<br>
+              <br>
+            </p>
+          </section>
+        </div>
+      </center>
+    </div>
+    <!-- Copyright -->
+    <div id="copyright">
+      <div class="container"> Design: <a href="http://templated.co">TEMPLATED</a>
+      </div>
+    </div>
+  </body>
+</html>
