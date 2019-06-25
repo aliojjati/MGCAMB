@@ -7,4 +7,4 @@ By [A. Zucca](https://www.sfu.ca/physics/people/profiles/azucca.html), [A. Hojja
 
 This is a development page with the source files included. 
 
-Visit MGCAMB page [here](https://github.com/sfu-cosmo/MGCAMB)  
+Visit MGCAMB page in the SFU Cosmology repo [here](https://github.com/sfu-cosmo/MGCAMB)  
